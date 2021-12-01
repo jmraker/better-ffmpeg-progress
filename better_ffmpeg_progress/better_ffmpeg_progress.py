@@ -60,6 +60,9 @@ class FfmpegProcess:
             progress_bar = tqdm(total=self._duration_secs, unit="s", dynamic_ncols=True)
             progress_bar.clear()
             previous_seconds_processed = 0
+            total_size = 0
+            prev_total_size = 0
+            estimated_size = "unknown"
         else:
             self._process = subprocess.Popen(self._ffmpeg_args)
 
@@ -76,11 +79,18 @@ class FfmpegProcess:
                             previous_seconds_processed = seconds_processed
                     # A progress handler was specified.
                     else:
-                        if "out_time_ms" in ffmpeg_output:
+                        if "total_size" in ffmpeg_output:
+                            totalSize = int(ffmpeg_output.split("=")[1]);
+                            if percentage != "unknown" and percentage > 0:
+                                 if total_size != prev_total_size:
+                                     prev_total_size = total_size;
+                                     estimated_size = int(total_size * (100 / percentage))
+
+                        elif "out_time_ms" in ffmpeg_output:
                             seconds_processed = int(ffmpeg_output.strip()[12:]) / 1_000_000
                             percentage = round((seconds_processed / self._duration_secs) * 100, 1)
 
-                        if "speed" in ffmpeg_output:
+                        elif "speed" in ffmpeg_output:
                             speed = ffmpeg_output.split("=")[1].strip()
                             if " " in speed or "N/A" in speed:
                                 speed = None
@@ -89,7 +99,7 @@ class FfmpegProcess:
 
                             if speed:
                                 eta = (file_duration - secs) / speed
-                                progress_handler(percentage, f"{speed}x", eta)
+                                progress_handler(percentage, f"{speed}x", eta, estimated_size)
 
             progress_bar.close()
             print(f"Done! Check out /{ffmpeg_output_file} to see the FFmpeg output.")
